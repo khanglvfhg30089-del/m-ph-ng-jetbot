@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng JetBot 3D - CMU Lớp 10A</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        jetgreen: '#2e7d32',
+                        jetbrightgreen: '#25d366',
+                        jetblue: '#0072ff',
+                        darkbg: '#0f172a',
+                        panelbg: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            user-select: none;
+            overflow: hidden;
+        }
+        #viewport {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Pulse Animation */
+        @keyframes radar-sweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .radar-sweeper {
+            animation: radar-sweep 2s linear infinite;
+        }
+        /* Hotspot style */
+        .hotspot-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen flex flex-col">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-900/90 border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center z-20 backdrop-blur-md shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-slate-900 font-bold text-xl shadow-lg shadow-emerald-500/20">
+                <i class="fa-solid fa-robot"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-none bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">JETBOT SIMULATOR</h1>
+                <p class="text-xs text-slate-400">Nhiệm vụ CMU Lớp 10A • Mô phỏng Robot AI 3D</p>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 my-2 sm:my-0">
+            <button id="tab-btn-sim" onclick="switchTab('sim')" class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-emerald-600 text-white shadow-md">
+                <i class="fa-solid fa-gamepad mr-1.5"></i> Mô Phỏng & Điều Khiển
+            </button>
+            <button id="tab-btn-anatomy" onclick="switchTab('anatomy')" class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-all">
+                <i class="fa-solid fa-microchip mr-1.5"></i> Cấu Tạo & Linh Kiện
+            </button>
+            <button id="tab-btn-docs" onclick="switchTab('docs')" class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-all">
+                <i class="fa-solid fa-book-open mr-1.5"></i> Hướng Dẫn & Chức Năng
+            </button>
+        </nav>
+
+        <!-- Status & Telemetry Summary -->
+        <div class="hidden lg:flex items-center space-x-4 text-xs bg-slate-950/60 px-3 py-1.5 rounded-lg border border-slate-800/80">
+            <div class="flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-slate-400">Wi-Fi: <strong class="text-emerald-400" id="wifi-status">JetBot_5G (98%)</strong></span>
+            </div>
+            <div class="h-3 w-px bg-slate-800"></div>
+            <div class="flex items-center space-x-1.5">
+                <i class="fa-solid fa-battery-three-quarters text-emerald-400"></i>
+                <span class="text-slate-400">Pin: <strong class="text-slate-200">12.4V (88%)</strong></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN TAB 1: 3D SIMULATION & CONTROLS -->
+    <main id="tab-sim" class="tab-content flex-1 flex flex-col lg:flex-row relative overflow-hidden">
+        
+        <!-- 3D Canvas Viewport -->
+        <div class="relative flex-1 h-full bg-slate-950">
+            <div id="viewport"></div>
+
+            <!-- Viewport Controls Overlay -->
+            <div class="absolute top-4 left-4 z-10 flex flex-col space-y-2">
+                <div class="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-lg p-2 text-xs flex flex-col space-y-1 shadow-lg">
+                    <span class="text-slate-400 font-medium"><i class="fa-solid fa-camera mr-1"></i> Góc nhìn 3D</span>
+                    <div class="grid grid-cols-2 gap-1">
+                        <button onclick="setCameraView('orbit')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-left transition"><i class="fa-solid fa-rotate mr-1"></i> Xoay tự do</button>
+                        <button onclick="setCameraView('top')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-left transition"><i class="fa-solid fa-arrows-to-eye mr-1"></i> Phía trên</button>
+                        <button onclick="setCameraView('chase')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-left transition"><i class="fa-solid fa-video mr-1"></i> Theo sau</button>
+                        <button onclick="resetCamera()" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-left transition"><i class="fa-solid fa-arrows-rotate mr-1"></i> Mặc định</button>
+                    </div>
+                </div>
+
+                <!-- Auto-pilot Toggle -->
+                <button id="autopilot-btn" onclick="toggleAutopilot()" class="bg-slate-900/80 hover:bg-slate-800 backdrop-blur border border-slate-700 px-3 py-2 rounded-lg text-xs font-semibold text-emerald-400 flex items-center space-x-2 transition shadow-lg">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Tự Động Tránh Vật Cản (LiDAR)</span>
+                    <span id="autopilot-badge" class="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400">OFF</span>
+                </button>
+            </div>
+
+            <!-- Keyboard Guide Helper -->
+            <div class="absolute bottom-4 left-4 hidden md:flex items-center space-x-2 bg-slate-900/70 backdrop-blur border border-slate-800 px-3 py-1.5 rounded-lg text-xs text-slate-400">
+                <i class="fa-solid fa-keyboard text-emerald-400"></i>
+                <span>Điều khiển bàn phím: <kbd class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200 border border-slate-700">W</kbd><kbd class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200 border border-slate-700">A</kbd><kbd class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200 border border-slate-700">S</kbd><kbd class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200 border border-slate-700">D</kbd> hoặc phím Mũi Tên</span>
+            </div>
+        </div>
+
+        <!-- Sidebar Dashboard: Camera Feed + LiDAR + D-Pad Controls -->
+        <div class="w-full lg:w-96 bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 flex flex-col p-4 space-y-4 overflow-y-auto shrink-0 max-h-[50vh] lg:max-h-none">
+            
+            <!-- Live Camera Simulation Feed -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 relative overflow-hidden shadow-md">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                        <span class="text-xs font-semibold text-slate-300"><i class="fa-solid fa-eye text-emerald-400 mr-1"></i> Live Camera CSI (AI Vision)</span>
+                    </div>
+                    <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800">YOLOv8 Active</span>
+                </div>
+                <!-- Simulated Camera Viewport -->
+                <div class="relative w-full h-36 bg-slate-900 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
+                    <canvas id="camera-canvas" class="w-full h-full object-cover"></canvas>
+                    <div class="absolute inset-0 border border-emerald-500/20 pointer-events-none flex flex-col justify-between p-2">
+                        <div class="flex justify-between text-[9px] font-mono text-emerald-400">
+                            <span>FPS: <span id="cam-fps">30</span></span>
+                            <span>RES: 1280x720</span>
+                        </div>
+                        <!-- Simulated Bounding Box -->
+                        <div id="ai-bbox" class="absolute border-2 border-emerald-400 bg-emerald-500/10 rounded px-1 text-[9px] text-emerald-300 font-mono transition-all duration-75" style="top: 20%; left: 30%; width: 40%; height: 50%;">
+                            Cốc Chắn / Obstacle (94%)
+                        </div>
+                        <div class="text-[9px] font-mono text-emerald-400/70 text-right">JETSON NANO CUDA</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2D RPLIDAR Scanner Simulation -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-md">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-semibold text-slate-300 flex items-center">
+                        <i class="fa-solid fa-satellite-dish text-cyan-400 mr-1.5"></i> Cảm biến RPLIDAR 360° Radar
+                    </span>
+                    <span class="text-[10px] font-mono text-slate-400" id="lidar-distance">Vật cản gần nhất: 1.2m</span>
+                </div>
+                <div class="relative w-full h-40 flex items-center justify-center bg-slate-900/90 rounded-lg border border-slate-800 overflow-hidden">
+                    <canvas id="lidar-canvas" width="160" height="160" class="rounded-full bg-slate-950 border border-slate-800"></canvas>
+                    <!-- Sweeper effect overlay -->
+                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div class="w-36 h-36 border border-cyan-500/20 rounded-full flex items-center justify-center">
+                            <div class="w-24 h-24 border border-cyan-500/30 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control D-Pad & Speed Slider -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex-1 flex flex-col justify-between shadow-md">
+                <div class="text-xs font-semibold text-slate-300 mb-2 flex justify-between items-center">
+                    <span><i class="fa-solid fa-gamepad text-emerald-400 mr-1.5"></i> Bộ Điều Khiển Di Chuyển</span>
+                    <span id="speed-label" class="text-[11px] font-mono text-emerald-400">Tốc độ: 60%</span>
+                </div>
+
+                <!-- Speed Control Slider -->
+                <div class="mb-3 px-1">
+                    <input type="range" id="speed-slider" min="20" max="100" value="60" oninput="updateSpeed(this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
+                        <span>Chậm (20%)</span>
+                        <span>Vừa</span>
+                        <span>Nhanh (100%)</span>
+                    </div>
+                </div>
+
+                <!-- D-Pad Buttons -->
+                <div class="grid grid-cols-3 gap-2 w-48 mx-auto my-1">
+                    <div></div>
+                    <button onmousedown="startDrive('forward')" onmouseup="stopDrive()" onmouseleave="stopDrive()" ontouchstart="startDrive('forward')" ontouchend="stopDrive()" class="h-12 bg-slate-800 hover:bg-emerald-600 text-slate-200 active:bg-emerald-700 rounded-xl flex items-center justify-center text-lg font-bold border border-slate-700 transition shadow-md">
+                        <i class="fa-solid fa-chevron-up"></i>
+                    </button>
+                    <div></div>
+
+                    <button onmousedown="startDrive('left')" onmouseup="stopDrive()" onmouseleave="stopDrive()" ontouchstart="startDrive('left')" ontouchend="stopDrive()" class="h-12 bg-slate-800 hover:bg-emerald-600 text-slate-200 active:bg-emerald-700 rounded-xl flex items-center justify-center text-lg font-bold border border-slate-700 transition shadow-md">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button onclick="stopDrive()" class="h-12 bg-red-900/60 hover:bg-red-700 text-red-200 rounded-xl flex items-center justify-center text-xs font-bold border border-red-700/50 transition shadow-md">
+                        STOP
+                    </button>
+                    <button onmousedown="startDrive('right')" onmouseup="stopDrive()" onmouseleave="stopDrive()" ontouchstart="startDrive('right')" ontouchend="stopDrive()" class="h-12 bg-slate-800 hover:bg-emerald-600 text-slate-200 active:bg-emerald-700 rounded-xl flex items-center justify-center text-lg font-bold border border-slate-700 transition shadow-md">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+
+                    <div></div>
+                    <button onmousedown="startDrive('backward')" onmouseup="stopDrive()" onmouseleave="stopDrive()" ontouchstart="startDrive('backward')" ontouchend="stopDrive()" class="h-12 bg-slate-800 hover:bg-emerald-600 text-slate-200 active:bg-emerald-700 rounded-xl flex items-center justify-center text-lg font-bold border border-slate-700 transition shadow-md">
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </button>
+                    <div></div>
+                </div>
+
+                <!-- Real-time Motor Telemetry -->
+                <div class="mt-2 grid grid-cols-2 gap-2 text-[11px] font-mono bg-slate-900/80 p-2 rounded-lg border border-slate-800/80">
+                    <div class="flex flex-col">
+                        <span class="text-slate-500">Động cơ Trái (L):</span>
+                        <span id="motor-left-speed" class="text-emerald-400 font-bold">0 RPM</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-slate-500">Động cơ Phải (R):</span>
+                        <span id="motor-right-speed" class="text-emerald-400 font-bold">0 RPM</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- MAIN TAB 2: ANATOMY / COMPONENTS EXPLORER -->
+    <main id="tab-anatomy" class="tab-content flex-1 hidden flex-col lg:flex-row overflow-hidden bg-slate-950 p-4 gap-4">
+        
+        <!-- Component List Grid -->
+        <div class="w-full lg:w-1/2 overflow-y-auto pr-1 space-y-3">
+            <div class="mb-3">
+                <h2 class="text-lg font-bold text-emerald-400 flex items-center"><i class="fa-solid fa-cubes mr-2"></i> Chi Tiết Linh Kiện & Cấu Tạo Thực Tế JetBot</h2>
+                <p class="text-xs text-slate-400">Dựa trên mô hình phần cứng JetBot thực tế CMU Lớp 10A (Đế xanh lá, vành mâm xanh dương, RPLIDAR, Jetson Nano).</p>
+            </div>
+
+            <!-- Component Items -->
+            <div onclick="highlightComponent('chassis')" class="comp-card p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-700/50 flex items-center justify-center text-emerald-400">
+                            <i class="fa-solid fa-circle"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-sm text-slate-200">1. Tấm Đế Khung Xe (Green Metallic Chassis)</h3>
+                            <p class="text-xs text-slate-400">Khung nhôm hợp kim phủ sơn xanh lá cây ánh kim chắc chắn.</p>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400">Cơ khí</span>
+                </div>
+            </div>
+
+            <div onclick="highlightComponent('wheels')" class="comp-card p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-blue-950 border border-blue-700/50 flex items-center justify-center text-blue-400">
+                            <i class="fa-solid fa-dharmachakra"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-sm text-slate-200">2. Bánh Xe Chủ Động & Bánh Xe Phụ</h3>
+                            <p class="text-xs text-slate-400">2 Bánh xe chính có vành mâm màu xanh dương metallic + Bánh xoay tự do (caster wheel) giữ thăng bằng phía trước.</p>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400">Chuyển động</span>
+                </div>
+            </div>
+
+            <div onclick="highlightComponent('jetson')" class="comp-card p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
+                            <i class="fa-solid fa-microchip"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-sm text-slate-200">3. Bo Mạch NVIDIA Jetson Nano</h3>
+                            <p class="text-xs text-slate-400">Bộ xử lý trung tâm AI có khối tản nhiệt nhôm màu đen, hỗ trợ nhân CUDA xử lý mạng thần kinh nhân tạo.</p>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400">Xử lý AI</span>
+                </div>
+            </div>
+
+            <div onclick="highlightComponent('lidar')" class="comp-card p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-700/50 flex items-center justify-center text-cyan-400">
+                            <i class="fa-solid fa-satellite-dish"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-sm text-slate-200">4. Cảm Biến RPLIDAR 360°</h3>
+                            <p class="text-xs text-slate-400">Cụm cảm biến laser đặt ở tầng trên cùng, quay bằng dây đai truyền động để lập bản đồ SLAM và tránh vật cản.</p>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400">Cảm biến Laser</span>
+                </div>
+            </div>
+
+            <div onclick="highlightComponent('camera')" class="comp-card p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-700/50 flex items-center justify-center text-emerald-400">
+                            <i class="fa-solid fa-camera"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-sm text-slate-200">5. Camera Wide-Angle CSI</h3>
+                            <p class="text-xs text-slate-400">Gắn trên giá đỡ xanh lá phía trước, nối cáp dẹp trắng (ribbon cable) giúp thu hình ảnh trực tiếp.</p>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400">Thị giác máy tính</span>
+                </div>
+            </div>
+
+            <div onclick="highlightComponent('board')" class="comp-card p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-amber-950 border border-amber-700/50 flex items-center justify-center text-amber-400">
+                            <i class="fa-solid fa-bolt"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-sm text-slate-200">6. Mạch Điều Khiển Động Cơ & Anten Wi-Fi</h3>
+                            <p class="text-xs text-slate-400">Mạch mở rộng công suất động cơ, công tắc nguồn ON/OFF cùng 2 anten Wi-Fi kép màu đen phía sau.</p>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400">Nguồn & Kết nối</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive 3D Component Inspector Window -->
+        <div class="w-full lg:w-1/2 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col p-4 relative overflow-hidden">
+            <h3 class="text-sm font-semibold text-slate-300 mb-2"><i class="fa-solid fa-magnifying-glass-plus text-emerald-400 mr-1.5"></i> Quan Sát Chi Tiết Mô Hình 3D</h3>
+            <div id="inspector-viewport" class="flex-1 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 relative">
+                <!-- Overlay details -->
+                <div id="comp-info-overlay" class="absolute bottom-3 left-3 right-3 bg-slate-900/90 border border-slate-700 backdrop-blur p-3 rounded-lg text-xs">
+                    <h4 id="comp-title" class="font-bold text-emerald-400 text-sm mb-1">Hãy nhấp vào danh sách bên trái</h4>
+                    <p id="comp-desc" class="text-slate-300">Chọn một linh kiện để xoay cận cảnh và xem giải thích chi tiết chức năng.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- MAIN TAB 3: DOCUMENTATION & GUIDELINES -->
+    <main id="tab-docs" class="tab-content flex-1 hidden overflow-y-auto bg-slate-950 p-6">
+        <div class="max-w-4xl mx-auto space-y-6 text-slate-300">
+            
+            <!-- Banner header -->
+            <div class="bg-gradient-to-r from-emerald-900/40 to-slate-900 border border-emerald-500/30 p-6 rounded-2xl">
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-900 text-emerald-300 border border-emerald-700">CMU Grade 10A Guidelines</span>
+                <h2 class="text-2xl font-bold text-white mt-2">HƯỚNG DẪN BÀI TẬP LỚN: TẠO WEB MÔ PHỎNG JETBOT</h2>
+                <p class="text-sm text-slate-300 mt-1">Dự án môn học CMU Lớp 10A - Nghiên cứu thiết kế, nguyên lý hoạt động và điều khiển Robot thông minh JetBot.</p>
+            </div>
+
+            <!-- Task Requirements Breakdown -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-950 text-emerald-400 flex items-center justify-center font-bold mb-3">1</div>
+                    <h3 class="font-semibold text-slate-100 mb-1">Cấu Tạo Linh Kiện</h3>
+                    <p class="text-xs text-slate-400">Thể hiện đầy đủ các bộ phận: Khung nhôm xanh lá, bánh xe mâm xanh dương, cụm RPLIDAR, bo Jetson Nano và camera CSI.</p>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <div class="w-8 h-8 rounded-lg bg-cyan-950 text-cyan-400 flex items-center justify-center font-bold mb-3">2</div>
+                    <h3 class="font-semibold text-slate-100 mb-1">Chức Năng Cơ Bản</h3>
+                    <p class="text-xs text-slate-400">Truyền luồng hình ảnh Camera AI thời gian thực, quét bản đồ vật cản LiDAR 360 độ và tính năng tự hành cơ bản.</p>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <div class="w-8 h-8 rounded-lg bg-blue-950 text-blue-400 flex items-center justify-center font-bold mb-3">3</div>
+                    <h3 class="font-semibold text-slate-100 mb-1">Điều Khiển Di Chuyển</h3>
+                    <p class="text-xs text-slate-400">Tích hợp phím D-Pad giao diện web và bàn phím (W, A, S, D / Phím mũi tên), điều chỉnh tốc độ linh hoạt.</p>
+                </div>
+            </div>
+
+            <!-- Detailed Explanation Section -->
+            <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
+                <h3 class="text-base font-bold text-emerald-400 flex items-center"><i class="fa-solid fa-microchip mr-2"></i> Nguyên Lý Hoạt Động Của JetBot</h3>
+                
+                <div class="space-y-3 text-xs leading-relaxed text-slate-300">
+                    <p>
+                        <strong class="text-slate-100">1. Não bộ xử lý AI (NVIDIA Jetson Nano):</strong> Khác với các mô hình xe Arduino thông thường, JetBot chạy hệ điều hành Ubuntu Linux trên bo mạch NVIDIA Jetson Nano trang bị GPU 128 nhân Maxwell. Điều này cho phép chạy các mô hình AI trực tiếp (Deep Learning / Neural Networks) để nhận dạng đối tượng, tự dò làn đường và tránh vật cản theo thời gian thực.
+                    </p>
+                    <p>
+                        <strong class="text-slate-100">2. Mắt thần Cảm biến Laser RPLIDAR:</strong> Cụm RPLIDAR đặt ở tầng cao nhất phát ra tia laser xoay 360 độ để đo khoảng cách chính xác tới các vật cản xung quanh. Dữ liệu này được thuật toán SLAM sử dụng để tái tạo bản đồ 2D của căn phòng.
+                    </p>
+                    <p>
+                        <strong class="text-slate-100">3. Cơ cấu di chuyển vi sai (Differential Drive):</strong> Robot chuyển hướng bằng cách điều khiển tốc độ khác nhau giữa động cơ bên trái và bên phải. Bánh xe tự do (caster wheel) ở phía trước đóng vai trò làm điểm tựa thăng bằng.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- JAVASCRIPT SIMULATION LOGIC -->
+    <script>
+        // Global States
+        let currentTab = 'sim';
+        let scene, camera, renderer, jetbotGroup, lidarDisk, leftWheel, rightWheel;
+        let inspectorScene, inspectorCamera, inspectorRenderer, inspectorJetbotGroup;
+        let driveDirection = 'stop';
+        let speedPercent = 60;
+        let isAutopilot = false;
+        let cameraMode = 'orbit';
+
+        // Keyboard State
+        const keysPressed = {};
+
+        // Components dictionary
+        const componentDetails = {
+            chassis: {
+                title: "Tấm Đế Khung Xe (Metallic Green Chassis)",
+                desc: "Được cắt bằng hợp kim nhôm chất lượng cao, phủ lớp sơn tĩnh điện màu xanh lá cây ánh kim nổi bật. Là bộ khung nâng đỡ toàn bộ bo mạch, động cơ và cảm biến."
+            },
+            wheels: {
+                title: "Bánh Xe Chủ Động & Bánh Xe Phụ (Blue Rim Wheels)",
+                desc: "Hai bánh xe chính 65mm cóและ mâm vành màu xanh dương metallic mạ bóng, kết hợp lốp cao su gai bám đường. Bánh xe phụ xoay 360 độ phía trước giúp cân bằng."
+            },
+            jetson: {
+                title: "Bo Mạch NVIDIA Jetson Nano",
+                desc: "Trang bị CPU Quad-core ARM Cortex-A57 và GPU 128 nhân Maxwell. Xử lý các mô hình trí tuệ nhân tạo như YOLO, SSD MobileNet và OpenCV trực tiếp."
+            },
+            lidar: {
+                title: "Cảm Biến RPLIDAR 360°",
+                desc: "Cảm biến khoảng cách Laser RPLIDAR A1. Tầng trên trang bị motor và dây đai truyền động xoay liên tục 360 độ để quét vật cản và tạo bản đồ radar."
+            },
+            camera: {
+                title: "Camera CSI Góc Rộng 8MP",
+                desc: "Camera kết nối trực tiếp với cổng CSI qua cáp dẹp màu trắng. Giá đỡ màu xanh lá cây đặt ở góc nghiêng phía trước cho tầm nhìn tối ưu."
+            },
+            board: {
+                title: "Mạch Mở Rộng & Anten Wi-Fi",
+                desc: "Tích hợp mạch điều khiển động cơ h-bridge, công tắc nguồn On/Off, mạch sạc pin và hai anten Wi-Fi SMA tần số cao giúp duy trì kết nối mạng mượt mà."
+            }
+        };
+
+        // Initialize Application
+        window.addEventListener('load', () => {
+            init3DMainScene();
+            init3DInspectorScene();
+            initLiDARCanvas();
+            initCameraCanvas();
+            setupKeyboardListeners();
+            animate();
+        });
+
+        // Tab Switching Logic
+        function switchTab(tabName) {
+            currentTab = tabName;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('bg-emerald-600', 'text-white', 'shadow-md');
+                el.classList.add('text-slate-400');
+            });
+
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.add('flex');
+            const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+            activeBtn.classList.add('bg-emerald-600', 'text-white', 'shadow-md');
+            activeBtn.classList.remove('text-slate-400');
+
+            if (tabName === 'sim') {
+                onWindowResize();
+            } else if (tabName === 'anatomy') {
+                onInspectorResize();
+            }
+        }
+
+        // ==========================================
+        // THREE.JS 3D JETBOT MODEL CREATION
+        // ==========================================
+        function createJetBotMesh() {
+            const group = new THREE.Group();
+
+            // Materials based on user images
+            const greenChassisMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, metalness: 0.8, roughness: 0.3 });
+            const blueRimMat = new THREE.MeshStandardMaterial({ color: 0x0072ff, metalness: 0.9, roughness: 0.2 });
+            const tireMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+            const blackMetalMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.5, roughness: 0.5 });
+            const pcbMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+            const cameraBracketMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, metalness: 0.7, roughness: 0.3 });
+            const ribbonCableMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0 });
+
+            // 1. Green Metallic Base Chassis (Circular shape with wheel cutouts)
+            const chassisShape = new THREE.Shape();
+            chassisShape.absarc(0, 0, 1.2, 0, Math.PI * 2, false);
+            const extrudeSettings = { depth: 0.05, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.02, bevelThickness: 0.02 };
+            const chassisGeo = new THREE.ExtrudeGeometry(chassisShape, extrudeSettings);
+            const chassisMesh = new THREE.Mesh(chassisGeo, greenChassisMat);
+            chassisMesh.rotation.x = Math.PI / 2;
+            chassisMesh.position.y = 0.3;
+            chassisMesh.name = "chassis";
+            group.add(chassisMesh);
+
+            // 2. Wheels (Left & Right) with Blue Rims
+            const wheelRadius = 0.35;
+            const wheelWidth = 0.18;
+            
+            // Wheel Generator
+            function makeWheel(isLeft) {
+                const wheelGroup = new THREE.Group();
+                // Tire
+                const tireGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 24);
+                const tireMesh = new THREE.Mesh(tireGeo, tireMat);
+                tireMesh.rotation.z = Math.PI / 2;
+                wheelGroup.add(tireMesh);
+
+                // Blue Rim
+                const rimGeo = new THREE.CylinderGeometry(wheelRadius * 0.65, wheelRadius * 0.65, wheelWidth + 0.01, 16);
+                const rimMesh = new THREE.Mesh(rimGeo, blueRimMat);
+                rimMesh.rotation.z = Math.PI / 2;
+                wheelGroup.add(rimMesh);
+
+                // Spoke lines
+                const spokeGeo = new THREE.BoxGeometry(wheelRadius * 1.2, 0.02, wheelWidth + 0.02);
+                const spokeMesh = new THREE.Mesh(spokeGeo, blueRimMat);
+                wheelGroup.add(spokeMesh);
+
+                wheelGroup.position.set(isLeft ? -1.1 : 1.1, 0.35, 0);
+                wheelGroup.name = "wheels";
+                return wheelGroup;
+            }
+
+            leftWheel = makeWheel(true);
+            rightWheel = makeWheel(false);
+            group.add(leftWheel);
+            group.add(rightWheel);
+
+            // Front Caster Wheel
+            const casterGeo = new THREE.SphereGeometry(0.12, 16, 16);
+            const casterMesh = new THREE.Mesh(casterGeo, blackMetalMat);
+            casterMesh.position.set(0, 0.12, 0.9);
+            casterMesh.name = "wheels";
+            group.add(casterMesh);
+
+            // 3. Standoffs & PCB Tiers (Middle Tier - Jetson Nano)
+            const pcbGeo = new THREE.BoxGeometry(1.2, 0.05, 1.2);
+            const pcbMesh = new THREE.Mesh(pcbGeo, pcbMat);
+            pcbMesh.position.set(0, 0.6, -0.1);
+            pcbMesh.name = "board";
+            group.add(pcbMesh);
+
+            // Jetson Nano Heatsink (Black Aluminium)
+            const heatsinkGeo = new THREE.BoxGeometry(0.7, 0.25, 0.7);
+            const heatsinkMesh = new THREE.Mesh(heatsinkGeo, blackMetalMat);
+            heatsinkMesh.position.set(0, 0.75, -0.1);
+            heatsinkMesh.name = "jetson";
+            group.add(heatsinkMesh);
+
+            // Dual Wi-Fi Antennas at Rear
+            const antennaGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 8);
+            const ant1 = new THREE.Mesh(antennaGeo, blackMetalMat);
+            ant1.position.set(-0.5, 0.9, -0.9);
+            ant1.rotation.x = -0.2;
+            ant1.name = "board";
+            group.add(ant1);
+
+            const ant2 = new THREE.Mesh(antennaGeo, blackMetalMat);
+            ant2.position.set(0.5, 0.9, -0.9);
+            ant2.rotation.x = -0.2;
+            ant2.name = "board";
+            group.add(ant2);
+
+            // 4. Top Deck - RPLIDAR Sensor
+            const topPcbGeo = new THREE.BoxGeometry(1.0, 0.04, 1.0);
+            const topPcbMesh = new THREE.Mesh(topPcbGeo, pcbMat);
+            topPcbMesh.position.set(0, 1.0, -0.1);
+            group.add(topPcbMesh);
+
+            // RPLIDAR Unit
+            const lidarBaseGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.25, 24);
+            const lidarBaseMesh = new THREE.Mesh(lidarBaseGeo, blackMetalMat);
+            lidarBaseMesh.position.set(0, 1.15, -0.1);
+            lidarBaseMesh.name = "lidar";
+            group.add(lidarBaseMesh);
+
+            // Rotating LIDAR Laser Scanner Top
+            const lidarDiskGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.15, 24);
+            const lidarDiskMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.7 });
+            lidarDisk = new THREE.Mesh(lidarDiskGeo, lidarDiskMat);
+            lidarDisk.position.set(0, 1.3, -0.1);
+            
+            // Add Laser Lens Dot
+            const lensGeo = new THREE.SphereGeometry(0.05, 8, 8);
+            const lensMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+            const lensMesh = new THREE.Mesh(lensGeo, lensMat);
+            lensMesh.position.set(0.3, 0, 0);
+            lidarDisk.add(lensMesh);
+            lidarDisk.name = "lidar";
+            group.add(lidarDisk);
+
+            // 5. Front Camera Mount & Ribbon Cable
+            const camBracketGeo = new THREE.BoxGeometry(0.2, 0.4, 0.1);
+            const camBracketMesh = new THREE.Mesh(camBracketGeo, cameraBracketMat);
+            camBracketMesh.position.set(0, 0.5, 1.15);
+            camBracketMesh.name = "camera";
+            group.add(camBracketMesh);
+
+            const camLensGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.15, 12);
+            const camLensMesh = new THREE.Mesh(camLensGeo, blackMetalMat);
+            camLensMesh.rotation.x = Math.PI / 2;
+            camLensMesh.position.set(0, 0.6, 1.22);
+            camLensMesh.name = "camera";
+            group.add(camLensMesh);
+
+            // White Ribbon Cable
+            const cableGeo = new THREE.BoxGeometry(0.18, 0.4, 0.01);
+            const cableMesh = new THREE.Mesh(cableGeo, ribbonCableMat);
+            cableMesh.position.set(0, 0.8, 0.9);
+            cableMesh.rotation.x = -0.4;
+            cableMesh.name = "camera";
+            group.add(cableMesh);
+
+            return group;
+        }
+
+        // Initialize Main 3D Scene
+        function init3DMainScene() {
+            const container = document.getElementById('viewport');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(0, 3.5, 5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // Ambient & Directional Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 10, 7);
+            scene.add(dirLight);
+
+            // Grid Floor
+            const gridHelper = new THREE.GridHelper(20, 20, 0x25d366, 0x1e293b);
+            scene.add(gridHelper);
+
+            // Obstacles in Scene for LiDAR Simulation
+            const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+            const obs1 = new THREE.Mesh(boxGeo, boxMat);
+            obs1.position.set(-3, 0.5, -2);
+            scene.add(obs1);
+
+            const obs2 = new THREE.Mesh(boxGeo, boxMat);
+            obs2.position.set(2.5, 0.5, -3);
+            scene.add(obs2);
+
+            // Build & Add JetBot Model
+            jetbotGroup = createJetBotMesh();
+            scene.add(jetbotGroup);
+
+            // Simple Orbit Control Interaction
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+            });
+
+            container.addEventListener('mousemove', (e) => {
+                if (!isDragging || cameraMode !== 'orbit') return;
+                const deltaMove = {
+                    x: e.clientX - previousMousePosition.x,
+                    y: e.clientY - previousMousePosition.y
+                };
+
+                const deltaRotationQuaternion = new THREE.Quaternion()
+                    .setFromEuler(new THREE.Euler(
+                        0,
+                        deltaMove.x * 0.005,
+                        0,
+                        'XYZ'
+                    ));
+
+                camera.position.applyQuaternion(deltaRotationQuaternion);
+                camera.lookAt(jetbotGroup.position);
+
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mouseup', () => { isDragging = false; });
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // Initialize Component Inspector 3D Scene
+        function init3DInspectorScene() {
+            const container = document.getElementById('inspector-viewport');
+            inspectorScene = new THREE.Scene();
+            inspectorScene.background = new THREE.Color(0x020617);
+
+            inspectorCamera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            inspectorCamera.position.set(0, 2, 3.5);
+
+            inspectorRenderer = new THREE.WebGLRenderer({ antialias: true });
+            inspectorRenderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(inspectorRenderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+            inspectorScene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            dirLight.position.set(3, 5, 3);
+            inspectorScene.add(dirLight);
+
+            inspectorJetbotGroup = createJetBotMesh();
+            inspectorScene.add(inspectorJetbotGroup);
+            inspectorCamera.lookAt(inspectorJetbotGroup.position);
+        }
+
+        function highlightComponent(compKey) {
+            const info = componentDetails[compKey];
+            if (!info) return;
+
+            document.getElementById('comp-title').innerText = info.title;
+            document.getElementById('comp-desc').innerText = info.desc;
+
+            // Highlight animation in Inspector
+            inspectorJetbotGroup.rotation.y += Math.PI / 2;
+        }
+
+        // Camera Views Switcher
+        function setCameraView(mode) {
+            cameraMode = mode;
+            if (mode === 'top') {
+                camera.position.set(jetbotGroup.position.x, jetbotGroup.position.y + 6, jetbotGroup.position.z + 0.1);
+                camera.lookAt(jetbotGroup.position);
+            } else if (mode === 'chase') {
+                camera.position.set(jetbotGroup.position.x, jetbotGroup.position.y + 2, jetbotGroup.position.z + 4);
+                camera.lookAt(jetbotGroup.position);
+            } else {
+                resetCamera();
+            }
+        }
+
+        function resetCamera() {
+            cameraMode = 'orbit';
+            camera.position.set(0, 3.5, 5);
+            camera.lookAt(jetbotGroup.position);
+        }
+
+        // Window Resize Handling
+        function onWindowResize() {
+            const container = document.getElementById('viewport');
+            if (!container) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function onInspectorResize() {
+            const container = document.getElementById('inspector-viewport');
+            if (!container) return;
+            inspectorCamera.aspect = container.clientWidth / container.clientHeight;
+            inspectorCamera.updateProjectionMatrix();
+            inspectorRenderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // ==========================================
+        // DRIVE CONTROLS & TELEMETRY
+        // ==========================================
+        function updateSpeed(val) {
+            speedPercent = parseInt(val);
+            document.getElementById('speed-label').innerText = `Tốc độ: ${speedPercent}%`;
+        }
+
+        function startDrive(dir) {
+            driveDirection = dir;
+            updateTelemetry();
+        }
+
+        function stopDrive() {
+            driveDirection = 'stop';
+            updateTelemetry();
+        }
+
+        function toggleAutopilot() {
+            isAutopilot = !isAutopilot;
+            const badge = document.getElementById('autopilot-badge');
+            const btn = document.getElementById('autopilot-btn');
+            
+            if (isAutopilot) {
+                badge.innerText = 'ON';
+                badge.className = 'px-1.5 py-0.5 rounded text-[10px] bg-emerald-500 text-slate-900 font-bold';
+                btn.classList.add('border-emerald-500');
+            } else {
+                badge.innerText = 'OFF';
+                badge.className = 'px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400';
+                btn.classList.remove('border-emerald-500');
+                stopDrive();
+            }
+        }
+
+        function updateTelemetry() {
+            const leftEl = document.getElementById('motor-left-speed');
+            const rightEl = document.getElementById('motor-right-speed');
+            const baseRpm = Math.round(speedPercent * 1.8);
+
+            if (driveDirection === 'forward') {
+                leftEl.innerText = `${baseRpm} RPM`;
+                rightEl.innerText = `${baseRpm} RPM`;
+            } else if (driveDirection === 'backward') {
+                leftEl.innerText = `-${baseRpm} RPM`;
+                rightEl.innerText = `-${baseRpm} RPM`;
+            } else if (driveDirection === 'left') {
+                leftEl.innerText = `-${Math.round(baseRpm / 2)} RPM`;
+                rightEl.innerText = `${baseRpm} RPM`;
+            } else if (driveDirection === 'right') {
+                leftEl.innerText = `${baseRpm} RPM`;
+                rightEl.innerText = `-${Math.round(baseRpm / 2)} RPM`;
+            } else {
+                leftEl.innerText = `0 RPM`;
+                rightEl.innerText = `0 RPM`;
+            }
+        }
+
+        // Keyboard Controls Setup
+        function setupKeyboardListeners() {
+            window.addEventListener('keydown', (e) => {
+                if (currentTab !== 'sim') return;
+                keysPressed[e.key.toLowerCase()] = true;
+                handleKeyboardDrive();
+            });
+
+            window.addEventListener('keyup', (e) => {
+                delete keysPressed[e.key.toLowerCase()];
+                handleKeyboardDrive();
+            });
+        }
+
+        function handleKeyboardDrive() {
+            if (keysPressed['w'] || keysPressed['arrowup']) {
+                startDrive('forward');
+            } else if (keysPressed['s'] || keysPressed['arrowdown']) {
+                startDrive('backward');
+            } else if (keysPressed['a'] || keysPressed['arrowleft']) {
+                startDrive('left');
+            } else if (keysPressed['d'] || keysPressed['arrowright']) {
+                startDrive('right');
+            } else {
+                stopDrive();
+            }
+        }
+
+        // ==========================================
+        // CANVAS 2D LIDAR RADAR & CAMERA SIMULATION
+        // ==========================================
+        let lidarAngle = 0;
+        function initLiDARCanvas() {
+            const canvas = document.getElementById('lidar-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            function drawLiDAR() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+
+                // Concentric Radar Rings
+                ctx.strokeStyle = 'rgba(6, 182, 212, 0.2)';
+                ctx.lineWidth = 1;
+                [20, 40, 60].forEach(r => {
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                    ctx.stroke();
+                });
+
+                // Sweeping Line
+                lidarAngle += 0.05;
+                ctx.strokeStyle = '#06b6d4';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + Math.cos(lidarAngle) * 70, cy + Math.sin(lidarAngle) * 70);
+                ctx.stroke();
+
+                // Simulated Radar Obstacle Blips
+                ctx.fillStyle = '#ef4444';
+                const blips = [
+                    { x: cx + 30, y: cy - 25 },
+                    { x: cx - 45, y: cy + 20 },
+                    { x: cx + 15, y: cy + 50 }
+                ];
+                blips.forEach(b => {
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                requestAnimationFrame(drawLiDAR);
+            }
+            drawLiDAR();
+        }
+
+        function initCameraCanvas() {
+            const canvas = document.getElementById('camera-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 320;
+            canvas.height = 180;
+
+            function drawCamera() {
+                // Simulated Video Feed Motion
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Grid Floor Perception Perspective
+                ctx.strokeStyle = 'rgba(37, 211, 102, 0.3)';
+                ctx.lineWidth = 1;
+                for (let i = -100; i < 400; i += 30) {
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2, 60);
+                    ctx.lineTo(i, canvas.height);
+                    ctx.stroke();
+                }
+
+                // AI Object Bounding Box Movement Overlay
+                const bbox = document.getElementById('ai-bbox');
+                if (bbox) {
+                    const time = Date.now() * 0.002;
+                    const shiftX = Math.sin(time) * 10;
+                    bbox.style.transform = `translateX(${shiftX}px)`;
+                }
+
+                requestAnimationFrame(drawCamera);
+            }
+            drawCamera();
+        }
+
+        // ==========================================
+        // MAIN ANIMATION & SIMULATION LOOP
+        // ==========================================
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Rotate RPLIDAR disk continuously
+            if (lidarDisk) {
+                lidarDisk.rotation.y += 0.1;
+            }
+
+            // Rotate Inspector Model Slowly
+            if (inspectorJetbotGroup && currentTab === 'anatomy') {
+                inspectorJetbotGroup.rotation.y += 0.005;
+                inspectorRenderer.render(inspectorScene, inspectorCamera);
+            }
+
+            // Handle JetBot Physical Movement in 3D Scene
+            if (jetbotGroup && currentTab === 'sim') {
+                const moveSpeed = (speedPercent / 100) * 0.05;
+
+                // Autopilot Autonomous Obstacle Avoidance Simulation
+                if (isAutopilot) {
+                    jetbotGroup.translateZ(moveSpeed);
+                    jetbotGroup.rotation.y += 0.015; // Smooth turn arc
+                    leftWheel.rotation.x += moveSpeed * 5;
+                    rightWheel.rotation.x += moveSpeed * 5;
+                } else if (driveDirection !== 'stop') {
+                    if (driveDirection === 'forward') {
+                        jetbotGroup.translateZ(moveSpeed);
+                        leftWheel.rotation.x += moveSpeed * 5;
+                        rightWheel.rotation.x += moveSpeed * 5;
+                    } else if (driveDirection === 'backward') {
+                        jetbotGroup.translateZ(-moveSpeed);
+                        leftWheel.rotation.x -= moveSpeed * 5;
+                        rightWheel.rotation.x -= moveSpeed * 5;
+                    } else if (driveDirection === 'left') {
+                        jetbotGroup.rotation.y += 0.04;
+                        leftWheel.rotation.x -= moveSpeed * 2;
+                        rightWheel.rotation.x += moveSpeed * 2;
+                    } else if (driveDirection === 'right') {
+                        jetbotGroup.rotation.y -= 0.04;
+                        leftWheel.rotation.x += moveSpeed * 2;
+                        rightWheel.rotation.x -= moveSpeed * 2;
+                    }
+                }
+
+                // Update Chase Camera position
+                if (cameraMode === 'chase') {
+                    const offset = new THREE.Vector3(0, 2, -4);
+                    offset.applyQuaternion(jetbotGroup.quaternion);
+                    camera.position.copy(jetbotGroup.position).add(offset);
+                    camera.lookAt(jetbotGroup.position);
+                }
+
+                renderer.render(scene, camera);
+            }
+        }
+    </script>
+</body>
+</html>

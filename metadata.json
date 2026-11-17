@@ -1,0 +1,6 @@
+{
+  "name": "JetBot 3D - Mô Phỏng Robot AI Siêu Thực",
+  "description": "Hệ thống mô phỏng 3D tương tác chân thực Robot NVIDIA Jetson Nano JetBot với cảm biến RPLIDAR 360°, camera AI CSI, bóc tách linh kiện và chế độ lái tự hành.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
